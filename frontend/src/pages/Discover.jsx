@@ -3,27 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import TrackRow from "../components/TrackRow";
-
-const SLIDERS = [
-  { key: "energy", label: "Energy", lo: "Calm", hi: "Intense" },
-  { key: "valence", label: "Mood", lo: "Sad", hi: "Happy" },
-  { key: "danceability", label: "Danceability", lo: "Still", hi: "Groovy" },
-  { key: "acousticness", label: "Acousticness", lo: "Electronic", hi: "Acoustic" },
-  { key: "liveness", label: "Liveness", lo: "Studio", hi: "Live" },
-  { key: "speechiness", label: "Speechiness", lo: "Music", hi: "Spoken" },
-];
+import { MOOD_SLIDERS, DEFAULT_MOOD_VALUES } from "../moodSliders";
 
 export default function Discover() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [values, setValues] = useState({
-    energy: 0.5,
-    valence: 0.5,
-    danceability: 0.5,
-    acousticness: 0.5,
-    liveness: 0.5,
-    speechiness: 0.5,
-  });
+  const [values, setValues] = useState(DEFAULT_MOOD_VALUES);
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,7 +57,7 @@ export default function Discover() {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-md max-w-2xl">
-        {SLIDERS.map(({ key, label, lo, hi }) => (
+        {MOOD_SLIDERS.map(({ key, label, lo, hi }) => (
           <div key={key} className="flex flex-col gap-xs">
             <div className="flex items-center justify-between">
               <span className="font-body-sm text-body-sm text-on-surface">{label}</span>

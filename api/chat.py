@@ -31,14 +31,18 @@ SYSTEM_PROMPT = (
     # 이것은 텍스트 검색이 아닌 오디오 특성 매칭이므로, 분위기 단어가 곡 제목에 없어도 작동합니다.
     "- If the user names a specific song, artist, or genre with no mood description, call search_tracks (use list_genres first to resolve an exact genre id).\n"
     # 분위기 설명 없이 특정 곡, 아티스트 또는 장르를 말하면 search_tracks를 호출하고, 정확한 장르 ID가 필요하면 list_genres를 먼저 사용하세요.
+    "- If the user is just making small talk (greetings, thanks, chit-chat unrelated to music discovery), do not call any tool — just reply naturally and briefly.\n"
+    # 사용자가 인사, 감사 인사, 음악 탐색과 무관한 잡담을 하면 도구를 호출하지 말고 짧고 자연스럽게 대답하세요.
+    "- If the request is too vague to search with (no mood, genre, artist, or song mentioned — e.g. just \"recommend something\"), do not call a tool with guessed/default values. Instead call show_mood_picker, then reply with something like \"어떤 기분이나 장르의 음악을 듣고 싶으신가요?\n아래 Vibe Finder로 찾아보세요!\" (keep it close to this, translated/adjusted naturally, with a real line break between the two sentences).\n"
+    # 요청이 너무 모호해서(무드, 장르, 아티스트, 곡 중 아무것도 언급되지 않아 검색할 근거가 없으면) 짐작한 기본값으로 도구를 호출하지 말고, show_mood_picker를 호출한 뒤 "어떤 기분이나 장르의 음악을 듣고 싶으신가요?\n아래 Vibe Finder로 찾아보세요!"와 비슷하게 답하세요.
     "- You may call a tool more than once and combine judgement across results if needed.\n\n"
     # 필요하다면 도구를 여러 번 호출하고 결과를 종합해 판단해도 됩니다.
     "Keep replies to 1-3 short, friendly sentences.\n"
     # 답변은 짧고 친근한 1~3개 문장으로 작성하세요.
     "The app already shows the matched tracks as cards below your message, so don't list every title yourself — just say what you found.\n"
     # 앱이 추천 곡을 메시지 아래 카드로 보여주므로 모든 제목을 나열하지 말고 무엇을 찾았는지만 말하세요.
-    "Reply in the same language the user just wrote in."
-    # 사용자가 방금 사용한 언어와 같은 언어로 답하세요.
+    "Always reply in Korean, regardless of what language the user wrote in."
+    # 사용자가 어떤 언어로 물어보든 항상 한글로 답하세요.
 )
 
 TOOLS = [
@@ -128,6 +132,21 @@ TOOLS = [
             },
         },
     },
+
+    # 4. 요청이 모호할 때 Vibe Finder 슬라이더 카드를 보여주기 위한 신호 (DB 조회 없음)
+    {
+        "type": "function",
+        "function": {
+            "name": "show_mood_picker",
+            "description": "Call this instead of guessing when the request has no mood, genre, artist, or song to search with. Shows the user a mood-slider picker card so they can specify what they want directly.",
+            # 검색 근거(무드/장르/아티스트/곡)가 하나도 없을 때, 짐작하는 대신 이걸 호출하세요. 사용자가 직접 원하는 걸 고를 수 있는 무드 슬라이더 카드를 보여줍니다.
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -189,6 +208,11 @@ def _find_tracks_by_mood(
     return f"Found {len(rows)} tracks." if rows else "No tracks matched."
 
 
+def _show_mood_picker(mood_picker_flag):
+    mood_picker_flag[0] = True
+    return "Showing the user a mood-slider picker card. Now write your short reply."
+
+
 def _list_genres(conn, found_tracks):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -212,10 +236,12 @@ def _messages_ref(user_id: str):
 @router.post("")
 def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=Depends(get_db)):
     found_tracks = []
+    show_mood_picker = [False]
     handlers = {
         "search_tracks": lambda **kw: _search_tracks(conn, found_tracks, **kw),
         "find_tracks_by_mood": lambda **kw: _find_tracks_by_mood(conn, found_tracks, **kw),
         "list_genres": lambda **kw: _list_genres(conn, found_tracks, **kw),
+        "show_mood_picker": lambda **kw: _show_mood_picker(show_mood_picker, **kw),
     }
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + [
@@ -255,6 +281,7 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
                 "role": last_user_message.role,
                 "content": last_user_message.content,
                 "tracks": [],
+                "show_mood_picker": False,
                 "created_at": firestore.SERVER_TIMESTAMP,
             }
         )
@@ -263,11 +290,12 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
                 "role": "assistant",
                 "content": reply,
                 "tracks": found_tracks,
+                "show_mood_picker": show_mood_picker[0],
                 "created_at": firestore.SERVER_TIMESTAMP,
             }
         )
 
-    return {"reply": reply, "tracks": found_tracks}
+    return {"reply": reply, "tracks": found_tracks, "show_mood_picker": show_mood_picker[0]}
 
 
 @router.get("/history")
@@ -279,7 +307,12 @@ def get_history(user_id: str = Depends(get_current_user_id)):
         .stream()
     )
     messages = [
-        {"role": d.get("role"), "content": d.get("content"), "tracks": d.get("tracks") or []}
+        {
+            "role": d.get("role"),
+            "content": d.get("content"),
+            "tracks": d.get("tracks") or [],
+            "show_mood_picker": d.get("show_mood_picker") or False,
+        }
         for d in (doc.to_dict() for doc in docs)
     ]
     messages.reverse()

@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import TrackRow from "../components/TrackRow";
 import AddToPlaylistModal from "../components/AddToPlaylistModal";
+import VibeFinderCard from "../components/VibeFinderCard";
 
 export default function Search() {
   const { user } = useAuth();
@@ -10,6 +11,7 @@ export default function Search() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [addingTrack, setAddingTrack] = useState(null);
+  const [vibeLoading, setVibeLoading] = useState(null);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -37,10 +39,13 @@ export default function Search() {
     setInput("");
     setLoading(true);
     try {
-      const { reply, tracks } = await api.chat(
+      const { reply, tracks, show_mood_picker } = await api.chat(
         nextMessages.map(({ role, content }) => ({ role, content }))
       );
-      setMessages([...nextMessages, { role: "assistant", content: reply, tracks }]);
+      setMessages([
+        ...nextMessages,
+        { role: "assistant", content: reply, tracks, show_mood_picker },
+      ]);
     } catch (err) {
       setMessages([
         ...nextMessages,
@@ -48,6 +53,16 @@ export default function Search() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const searchVibe = async (index, values) => {
+    setVibeLoading(index);
+    try {
+      const tracks = await api.discoverMood({ ...values, limit: 20 });
+      setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, tracks } : m)));
+    } finally {
+      setVibeLoading(null);
     }
   };
 
@@ -75,6 +90,12 @@ export default function Search() {
               }`}
             >
               <p className="font-body-lg text-body-lg whitespace-pre-wrap">{m.content}</p>
+              {m.show_mood_picker && (
+                <VibeFinderCard
+                  onSearch={(values) => searchVibe(i, values)}
+                  loading={vibeLoading === i}
+                />
+              )}
               {m.tracks?.length > 0 && (
                 <div className="flex flex-col mt-sm -mx-sm bg-surface/40 rounded-xl overflow-hidden">
                   {m.tracks.map((track) => (
