@@ -31,6 +31,10 @@ SYSTEM_PROMPT = (
     # 이것은 텍스트 검색이 아닌 오디오 특성 매칭이므로, 분위기 단어가 곡 제목에 없어도 작동합니다.
     "- If the user names a specific song, artist, or genre with no mood description, call search_tracks (use list_genres first to resolve an exact genre id).\n"
     # 분위기 설명 없이 특정 곡, 아티스트 또는 장르를 말하면 search_tracks를 호출하고, 정확한 장르 ID가 필요하면 list_genres를 먼저 사용하세요.
+    "- The catalog stores song and artist names in their original script (mostly English), not translated. If the user writes a song or artist name in Korean or another language, convert it to how it actually appears in the catalog (e.g. \"테일러 스위프트\" -> \"Taylor Swift\") before calling search_tracks — never pass the untranslated name as the query.\n"
+    # 카탈로그의 곡/아티스트 이름은 번역 없이 원어(대부분 영어)로 저장돼 있습니다. 사용자가 한글 등 다른 언어로 이름을 말하면, search_tracks를 호출하기 전에 카탈로그에 실제로 쓰이는 표기(예: "테일러 스위프트" -> "Taylor Swift")로 바꾸세요 — 번역 안 된 이름을 그대로 query에 넣지 마세요.
+    "- If you're not fully sure of the exact original-script spelling (lesser-known artist/song), still make your best guess and call search_tracks. If that returns no results, try 1-2 alternate spellings/transliterations. If it's still not found after that, tell the user you couldn't find it and ask them to type the exact name in its original spelling — don't just say \"not found\" after a single guess.\n"
+    # 원어 철자를 100% 확신할 수 없는(덜 알려진 아티스트/곡) 경우에도, 가장 그럴듯한 철자로 먼저 search_tracks를 호출하세요. 결과가 없으면 다른 철자/표기로 1~2번 더 시도하세요. 그래도 못 찾으면, 못 찾았다고 말하고 정확한 원어 이름을 직접 입력해달라고 요청하세요 — 한 번 시도하고 바로 "못 찾았다"고 하지 마세요.
     "- If the user is just making small talk (greetings, thanks, chit-chat unrelated to music discovery), do not call any tool — just reply naturally and briefly.\n"
     # 사용자가 인사, 감사 인사, 음악 탐색과 무관한 잡담을 하면 도구를 호출하지 말고 짧고 자연스럽게 대답하세요.
     "- If the request is too vague to search with (no mood, genre, artist, or song mentioned — e.g. just \"recommend something\"), do not call a tool with guessed/default values. Instead call show_mood_picker, then reply with something like \"어떤 기분이나 장르의 음악을 듣고 싶으신가요?\n아래 Vibe Finder로 찾아보세요!\" (keep it close to this, translated/adjusted naturally, with a real line break between the two sentences).\n"
@@ -58,8 +62,8 @@ TOOLS = [
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Free text to match against track names. Empty string to skip.",
-                        # 곡 이름과 비교할 검색어이며, 빈 문자열이면 이름 검색을 생략합니다.
+                        "description": "Free text to match against track names or artist names (e.g. a song title or an artist's name). Empty string to skip.",
+                        # 곡 이름 또는 아티스트 이름과 비교할 검색어이며, 빈 문자열이면 이름 검색을 생략합니다.
                     },
                     "genre": {
                         "type": "string",
@@ -167,7 +171,15 @@ def _search_tracks(conn, found_tracks, query="", genre="", limit=20):
             FROM tracks t
             LEFT JOIN albums a ON a.id = t.album_id
             LEFT JOIN track_genre tg ON tg.track_id = t.id AND %(genre)s != ''
-            WHERE (%(query)s = '' OR t.name ILIKE '%%' || %(query)s || '%%')
+            WHERE (
+                %(query)s = ''
+                OR t.name ILIKE '%%' || %(query)s || '%%'
+                OR EXISTS (
+                    SELECT 1 FROM track_artist ta
+                    JOIN artists ar ON ar.id = ta.artist_id
+                    WHERE ta.track_id = t.id AND ar.name ILIKE '%%' || %(query)s || '%%'
+                )
+            )
               AND (%(genre)s = '' OR tg.genre_id = %(genre)s)
             ORDER BY t.popularity DESC NULLS LAST
             LIMIT %(limit)s
