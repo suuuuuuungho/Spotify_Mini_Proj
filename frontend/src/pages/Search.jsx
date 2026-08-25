@@ -69,17 +69,19 @@ export default function Search() {
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto">
       {messages.length > 0 && (
-        <div className="sticky top-0 z-30 bg-surface/90 backdrop-blur-md flex justify-end pb-sm">
-          <button
-            onClick={clearChat}
-            className="flex items-center gap-xs text-on-surface-variant hover:text-on-surface font-label-bold text-label-bold px-md py-xs rounded-full hover:bg-surface-container-high transition-colors"
-          >
-            <span className="material-symbols-outlined text-base">add_comment</span>
-            New chat
-          </button>
+        <div className="fixed top-16 left-72 right-0 z-30 bg-surface-container-low/90 backdrop-blur-md px-lg py-sm">
+          <div className="max-w-2xl mx-auto flex justify-end">
+            <button
+              onClick={clearChat}
+              className="flex items-center gap-xs text-on-surface-variant hover:text-on-surface font-label-bold text-label-bold px-md py-xs rounded-full hover:bg-surface-container-high transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">add_comment</span>
+              New chat
+            </button>
+          </div>
         </div>
       )}
-      <div className="flex-1 flex flex-col gap-md pb-64">
+      <div className={`flex-1 flex flex-col gap-md pb-64 ${messages.length > 0 ? "pt-14" : ""}`}>
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div

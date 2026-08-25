@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import List, Literal
 
 from fastapi import APIRouter, Depends
@@ -311,6 +312,13 @@ def _track_summary(tracks):
     return ", ".join(parts)
 
 
+def _strip_shown_tracks_note(reply):
+    """모델이 컨텍스트에서 본 "[Shown tracks: ...]" 패턴을 그대로 따라 답변에
+    적어버리는 경우가 있어서, 프롬프트 지시만으론 안 막히길래 반환 직전에
+    한 번 더 제거하는 안전장치."""
+    return re.sub(r"\n*\[Shown tracks:.*?\]", "", reply, flags=re.DOTALL).strip()
+
+
 def _history_to_messages(history):
     """Firestore에 저장된 과거 대화를 OpenAI 컨텍스트용 메시지로 변환.
     과거 assistant 턴에 곡 목록이 있었으면, 화면에는 안 보이지만 LLM이
@@ -363,7 +371,7 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
         messages.append(message.model_dump(exclude_none=True))
 
         if not message.tool_calls:
-            reply = message.content or ""
+            reply = _strip_shown_tracks_note(message.content or "")
             break
 
         for tool_call in message.tool_calls:
