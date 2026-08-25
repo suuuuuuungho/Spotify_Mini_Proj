@@ -67,13 +67,13 @@ export default function Sidebar() {
 
         {user && (
           <>
-            <hr className="border-outline-variant/40 my-sm" />
+            <div className="border-t border-outline-variant !mt-sm !mb-sm" />
             <button
               onClick={startNewChat}
-              className="w-full flex items-center gap-xs px-md py-sm rounded-lg bg-primary text-on-primary font-label-bold text-label-bold hover:scale-[1.02] transition-transform"
+              className="w-full flex items-center px-md py-sm rounded-lg bg-primary text-on-primary hover:scale-[1.02] transition-transform"
             >
-              <span className="material-symbols-outlined">add_comment</span>
-              New chat
+              <span className="material-symbols-outlined mr-sm">add_comment</span>
+              <span className="font-label-bold text-label-bold">New chat</span>
             </button>
             <div className="flex flex-col gap-1 mt-xs">
               {sessions.map((s) => (

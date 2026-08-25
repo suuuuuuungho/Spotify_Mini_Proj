@@ -16,10 +16,21 @@ const FEATURES = [
   ["acousticness", "Acousticness"],
 ];
 
-function Transport({ track }) {
+function Transport({ track, compact = false }) {
   return (
     <div className="flex items-center gap-md">
-      <span className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed">
+      <span
+        title="Not available in this demo"
+        className={`material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed ${
+          compact ? "text-lg" : ""
+        }`}
+      >
+        shuffle
+      </span>
+      <span
+        title="Not available in this demo"
+        className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed"
+      >
         skip_previous
       </span>
       {track?.spotify_url ? (
@@ -31,15 +42,26 @@ function Transport({ track }) {
           title="Open in Spotify (no preview audio available, playback isn't supported)"
           className="w-8 h-8 rounded-full bg-on-surface text-surface flex items-center justify-center hover:scale-110 transition-transform"
         >
-          <span className="material-symbols-outlined">open_in_new</span>
+          <span className="material-symbols-outlined">play_arrow</span>
         </a>
       ) : (
         <span className="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant/40 flex items-center justify-center">
           <span className="material-symbols-outlined">play_arrow</span>
         </span>
       )}
-      <span className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed">
+      <span
+        title="Not available in this demo"
+        className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed"
+      >
         skip_next
+      </span>
+      <span
+        title="Not available in this demo"
+        className={`material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed ${
+          compact ? "text-lg" : ""
+        }`}
+      >
+        repeat
       </span>
     </div>
   );
@@ -142,23 +164,57 @@ export default function PlayerBar() {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-sm w-1/3">
-          <span className="font-body-sm text-body-sm text-on-surface-variant/60 hidden lg:inline">
-            No preview audio — the play button opens Spotify
+        <div
+          className="flex items-center justify-end gap-sm w-1/3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span
+            title="Not available in this demo"
+            className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed hidden lg:inline"
+          >
+            lyrics
           </span>
+          <span
+            title="Not available in this demo"
+            className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed hidden lg:inline"
+          >
+            queue_music
+          </span>
+          <span
+            title="Not available in this demo"
+            className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed hidden lg:inline"
+          >
+            devices
+          </span>
+          <div className="hidden lg:flex items-center gap-xs" title="Not available in this demo">
+            <span className="material-symbols-outlined text-on-surface-variant/40 cursor-not-allowed">
+              volume_up
+            </span>
+            <div className="w-20 h-1 bg-surface-container-highest rounded-full overflow-hidden">
+              <div className="h-full w-2/3 bg-on-surface-variant/40" />
+            </div>
+          </div>
           {track && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded((v) => !v);
-              }}
-              title={expanded ? "Collapse player" : "Expand player"}
-              className="p-xs rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
-            >
-              <span className="material-symbols-outlined">
-                {expanded ? "keyboard_arrow_down" : "keyboard_arrow_up"}
-              </span>
-            </button>
+            <>
+              <button
+                onClick={() => setExpanded(false)}
+                title="Mini player"
+                className={`p-xs rounded-full transition-colors hover:bg-surface-container-high ${
+                  !expanded ? "text-on-surface" : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                <span className="material-symbols-outlined text-xl">picture_in_picture_alt</span>
+              </button>
+              <button
+                onClick={() => setExpanded(true)}
+                title="Expand now playing"
+                className={`p-xs rounded-full transition-colors hover:bg-surface-container-high ${
+                  expanded ? "text-on-surface" : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                <span className="material-symbols-outlined text-xl">open_in_full</span>
+              </button>
+            </>
           )}
         </div>
       </div>

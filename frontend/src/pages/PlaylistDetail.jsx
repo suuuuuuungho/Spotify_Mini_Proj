@@ -4,6 +4,11 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useNowPlaying } from "../NowPlayingContext";
 
+function formatYear(dateStr) {
+  if (!dateStr) return null;
+  return new Date(dateStr).getFullYear();
+}
+
 function formatDuration(ms) {
   if (!ms) return "--:--";
   const totalSeconds = Math.round(ms / 1000);
@@ -71,6 +76,7 @@ export default function PlaylistDetail() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedTrack, setSelectedTrack] = useState(null);
   const menuRef = useRef(null);
 
   const load = () => api.playlist(id).then(setPlaylist);
@@ -99,7 +105,15 @@ export default function PlaylistDetail() {
     navigate("/playlists");
   };
 
-  const play = (track) => setTrack(track);
+  const selectTrack = (track) => {
+    setSelectedTrack(track);
+    api.track(track.id).then(setSelectedTrack).catch(() => {});
+  };
+
+  const play = (track) => {
+    setTrack(track);
+    selectTrack(track);
+  };
   const playFirst = () => playlist.tracks.length > 0 && play(playlist.tracks[0]);
   const shuffle = () =>
     playlist.tracks.length > 0 &&
@@ -122,7 +136,8 @@ export default function PlaylistDetail() {
   if (!playlist) return <p className="text-on-surface-variant">Loading...</p>;
 
   return (
-    <div className="flex flex-col -mx-lg -mt-16">
+    <div className="flex items-start gap-lg -mx-lg -mt-16">
+    <div className="flex-1 min-w-0 flex flex-col">
       <div className="bg-gradient-to-b from-primary-container/70 via-primary-container/15 to-surface px-lg pt-24 pb-lg">
         <div className="flex items-end gap-lg">
           <div className="w-56 h-56 rounded-lg overflow-hidden bg-surface-container-high shrink-0 shadow-2xl">
@@ -254,13 +269,15 @@ export default function PlaylistDetail() {
             Add tracks from search or Vibe Finder.
           </p>
         ) : (
-          <table className="w-full border-collapse">
+          <table className="w-full table-fixed border-collapse">
             <thead>
               <tr className="border-b border-outline-variant text-on-surface-variant font-body-sm text-body-sm">
                 <th className="text-left font-normal py-xs px-sm w-10">#</th>
-                <th className="text-left font-normal py-xs px-sm">Title</th>
-                <th className="text-left font-normal py-xs px-sm hidden md:table-cell">Album</th>
-                <th className="text-left font-normal py-xs px-sm hidden sm:table-cell">
+                <th className="text-left font-normal py-xs px-sm w-auto">Title</th>
+                <th className="text-left font-normal py-xs px-sm w-40 hidden md:table-cell">
+                  Album
+                </th>
+                <th className="text-left font-normal py-xs px-sm w-32 hidden sm:table-cell">
                   Date added
                 </th>
                 <th className="text-right font-normal py-xs px-sm w-16">
@@ -274,7 +291,9 @@ export default function PlaylistDetail() {
               {playlist.tracks.map((track, i) => (
                 <tr
                   key={track.id}
-                  className="group hover:bg-surface-container-high rounded-lg transition-colors"
+                  className={`group hover:bg-surface-container-high rounded-lg transition-colors ${
+                    selectedTrack?.id === track.id ? "bg-surface-container-high" : ""
+                  }`}
                 >
                   <td className="py-xs px-sm text-on-surface-variant font-body-sm text-body-sm tabular-nums">
                     {i + 1}
@@ -330,6 +349,120 @@ export default function PlaylistDetail() {
           </table>
         )}
       </div>
+    </div>
+
+    {selectedTrack && (
+      <aside className="w-80 shrink-0 mt-16 mr-lg sticky top-20 flex flex-col gap-md bg-surface-container-low rounded-xl p-md">
+        <div className="flex items-center justify-between">
+          <span className="font-label-bold text-label-bold text-on-surface-variant uppercase">
+            {selectedTrack.album_name || "Song"}
+          </span>
+          <button
+            onClick={() => setSelectedTrack(null)}
+            title="Close"
+            className="text-on-surface-variant hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        <div className="w-full aspect-square rounded-lg overflow-hidden bg-surface-container-high shadow-xl">
+          {selectedTrack.album_image_url ? (
+            <img
+              src={selectedTrack.album_image_url}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="material-symbols-outlined text-6xl text-on-surface-variant flex items-center justify-center w-full h-full">
+              music_note
+            </span>
+          )}
+        </div>
+
+        <div className="font-headline-md text-headline-md text-on-surface">
+          {selectedTrack.name}
+        </div>
+
+        {(selectedTrack.artists || []).map((artist) => (
+          <Link
+            key={artist.id}
+            to={`/artists/${artist.id}`}
+            className="flex items-center gap-sm -mx-xs px-xs py-xs rounded-lg hover:bg-surface-container-high transition-colors"
+          >
+            <span className="w-11 h-11 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-on-surface-variant">person</span>
+            </span>
+            <div className="min-w-0">
+              <div className="font-body-sm text-body-sm text-on-surface-variant uppercase">
+                Artist
+              </div>
+              <div className="font-label-bold text-label-bold text-on-surface truncate">
+                {artist.name}
+              </div>
+            </div>
+          </Link>
+        ))}
+
+        {selectedTrack.genres?.length > 0 && (
+          <div className="flex flex-wrap gap-xs">
+            {selectedTrack.genres.map((g) => (
+              <Link
+                key={g.id}
+                to={`/search?genre=${encodeURIComponent(g.id)}`}
+                className="text-xs px-sm py-1 rounded-full bg-surface-container-high text-on-surface-variant hover:text-on-surface capitalize"
+              >
+                {g.name}
+              </Link>
+            ))}
+          </div>
+        )}
+
+        <div className="bg-surface-container rounded-lg p-md flex flex-col gap-xs">
+          <span className="font-label-bold text-label-bold text-on-surface-variant uppercase text-xs">
+            About
+          </span>
+          {selectedTrack.album_name && (
+            <div className="flex items-center justify-between font-body-sm text-body-sm">
+              <span className="text-on-surface-variant">Album</span>
+              <Link
+                to={`/albums/${selectedTrack.album_id}`}
+                className="text-on-surface hover:underline truncate max-w-[60%] text-right"
+              >
+                {selectedTrack.album_name}
+              </Link>
+            </div>
+          )}
+          {formatYear(selectedTrack.release_date) && (
+            <div className="flex items-center justify-between font-body-sm text-body-sm">
+              <span className="text-on-surface-variant">Release year</span>
+              <span className="text-on-surface">{formatYear(selectedTrack.release_date)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between font-body-sm text-body-sm">
+            <span className="text-on-surface-variant">Duration</span>
+            <span className="text-on-surface">{formatDuration(selectedTrack.duration_ms)}</span>
+          </div>
+          {selectedTrack.popularity != null && (
+            <div className="flex items-center justify-between font-body-sm text-body-sm">
+              <span className="text-on-surface-variant">Popularity</span>
+              <span className="text-on-surface">{selectedTrack.popularity}</span>
+            </div>
+          )}
+        </div>
+
+        {selectedTrack.spotify_url && (
+          <a
+            href={selectedTrack.spotify_url}
+            target="_blank"
+            rel="noreferrer"
+            className="self-start flex items-center gap-xs bg-surface-container-high text-on-surface font-label-bold text-label-bold px-md py-xs rounded-full hover:bg-surface-container-highest transition-colors uppercase"
+          >
+            Open in Spotify
+          </a>
+        )}
+      </aside>
+    )}
     </div>
   );
 }

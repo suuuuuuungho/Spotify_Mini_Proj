@@ -298,7 +298,26 @@ def get_playlist(
             """,
             (playlist_id,),
         )
-        playlist["tracks"] = cur.fetchall()
+        tracks = cur.fetchall()
+        track_ids = [t["id"] for t in tracks]
+        if track_ids:
+            cur.execute(
+                """
+                SELECT ta.track_id, ar.id, ar.name
+                FROM track_artist ta
+                JOIN artists ar ON ar.id = ta.artist_id
+                WHERE ta.track_id = ANY(%s)
+                """,
+                (track_ids,),
+            )
+            artists_by_track = {}
+            for row in cur.fetchall():
+                artists_by_track.setdefault(row["track_id"], []).append(
+                    {"id": row["id"], "name": row["name"]}
+                )
+            for t in tracks:
+                t["artists"] = artists_by_track.get(t["id"], [])
+        playlist["tracks"] = tracks
         return playlist
 
 
