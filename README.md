@@ -70,3 +70,12 @@ docker compose exec backend python -m ingest.run
 ## 스키마 변경
 
 `db/schema.sql`은 새 데이터베이스 초기화용입니다. 기존 PostgreSQL 볼륨의 구조를 보강할 때는 `db/add_constraints_and_indexes.sql`을 한 번 적용합니다.
+
+## 인덱스 손상 증상이 보이면
+
+Postgres 이미지를 `pgvector/pgvector:pg16`으로 교체하는 과정에서 일부 환경에서 인덱스가 손상되는 문제가 있었습니다.
+"아티스트로 검색했는데 결과에 아티스트 이름이 안 붙어 나온다" 같은 증상이 보이면 `db/reindex_if_corrupted.sql`을 한 번 적용하세요.
+
+```powershell
+docker compose exec -T postgres psql -U spotify -d spotify < db/reindex_if_corrupted.sql
+```

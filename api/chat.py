@@ -14,6 +14,7 @@ from db.firestore_client import get_client as get_firestore_client
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 HISTORY_LIMIT = 50
+CONTEXT_LIMIT = 12
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 MODEL = "gpt-4o-mini"
@@ -41,6 +42,12 @@ SYSTEM_PROMPT = (
     # 요청이 너무 모호해서(무드, 장르, 아티스트, 곡 중 아무것도 언급되지 않아 검색할 근거가 없으면) 짐작한 기본값으로 도구를 호출하지 말고, show_mood_picker를 호출한 뒤 "어떤 기분이나 장르의 음악을 듣고 싶으신가요?\n아래 Vibe Finder로 찾아보세요!"와 비슷하게 답하세요.
     "- You may call a tool more than once and combine judgement across results if needed.\n\n"
     # 필요하다면 도구를 여러 번 호출하고 결과를 종합해 판단해도 됩니다.
+    "Conversation memory: earlier assistant messages may include a \"[Shown tracks: ...]\" note listing what was actually shown — this is context for you only, never repeat that literal bracket text to the user. Use it to answer follow-ups about previous results (e.g. \"who sings the second one\", \"more like that\").\n"
+    # 이전 assistant 메시지에 "[Shown tracks: ...]"라는 표기가 붙어있을 수 있는데, 이건 실제로 보여준 곡 목록을 알려주는 당신만을 위한 참고용 정보입니다 — 이 대괄호 텍스트 자체를 사용자에게 그대로 말하지 마세요. 이전 결과에 대한 후속 질문(예: "두 번째 곡 누가 불렀어", "그거랑 비슷한 걸로")에 답할 때 이 정보를 활용하세요.
+    "A short follow-up (a mood word, \"more like that\", \"something else\") usually continues the most recent artist/genre/topic — don't drop that context and start an unrelated new search unless the user clearly signals a topic change. If the previous turn was about a specific artist and the follow-up adds a mood/vibe word, you MUST call find_tracks_by_mood with that artist's exact catalog spelling in the artist parameter — never leave artist empty in this case, that would silently search the whole catalog instead of that artist.\n"
+    # "신나는 곡", "비슷한 걸로", "다른 거" 같은 짧은 후속 요청은 보통 직전 대화의 아티스트/장르/주제를 이어가는 것입니다 — 사용자가 명확히 주제를 바꾸지 않는 한, 그 맥락을 버리고 관련 없는 새 검색을 하지 마세요. 직전 대화가 특정 아티스트에 대한 것이었고 후속 요청이 무드/분위기 단어를 추가한 거라면, find_tracks_by_mood의 artist 파라미터를 반드시 채우세요 — 비워두면 카탈로그 전체에서 검색하게 됩니다.
+    "Example: user asks \"Taylor Swift\" -> you find her tracks. User then says \"more upbeat\" -> call find_tracks_by_mood(energy=0.8, valence=0.8, artist=\"Taylor Swift\"), NOT find_tracks_by_mood(energy=0.8, valence=0.8) with artist left empty.\n\n"
+    # 예시: 사용자가 "테일러 스위프트"라고 물어서 그녀의 곡을 찾아준 뒤, 사용자가 "더 신나게"라고 하면 find_tracks_by_mood(energy=0.8, valence=0.8, artist="Taylor Swift")를 호출해야지, artist를 비운 채 find_tracks_by_mood(energy=0.8, valence=0.8)만 호출하면 안 됩니다.
     "Keep replies to 1-3 short, friendly sentences.\n"
     # 답변은 짧고 친근한 1~3개 문장으로 작성하세요.
     "The app already shows the matched tracks as cards below your message, so don't list every title yourself — just say what you found.\n"
@@ -111,6 +118,11 @@ TOOLS = [
                         "description": "How electronic (0.0) vs acoustic (1.0) the track feels.",
                         # 곡이 전자음 중심인지(0.0), 어쿠스틱한지(1.0)를 나타냅니다.
                     },
+                    "artist": {
+                        "type": "string",
+                        "description": "Optional exact catalog spelling of an artist name to restrict results to (e.g. when continuing a mood request about a specific artist from earlier in the conversation). Empty string to search the whole catalog.",
+                        # 결과를 특정 아티스트로 한정하고 싶을 때(예: 대화 앞부분에서 언급된 아티스트에 대한 무드 후속 요청) 카탈로그 표기 그대로의 아티스트 이름. 전체 카탈로그에서 찾으려면 빈 문자열.
+                    },
                     "limit": {
                         "type": "integer",
                         "description": "Max number of tracks to return.",
@@ -163,6 +175,29 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
 
 
+def _attach_artists(conn, rows):
+    track_ids = [t["id"] for t in rows]
+    if not track_ids:
+        return
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            """
+            SELECT ta.track_id, ar.id, ar.name
+            FROM track_artist ta
+            JOIN artists ar ON ar.id = ta.artist_id
+            WHERE ta.track_id = ANY(%s)
+            """,
+            (track_ids,),
+        )
+        artists_by_track = {}
+        for row in cur.fetchall():
+            artists_by_track.setdefault(row["track_id"], []).append(
+                {"id": row["id"], "name": row["name"]}
+            )
+    for t in rows:
+        t["artists"] = artists_by_track.get(t["id"], [])
+
+
 def _search_tracks(conn, found_tracks, query="", genre="", limit=20):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -187,12 +222,13 @@ def _search_tracks(conn, found_tracks, query="", genre="", limit=20):
             {"query": query, "genre": genre, "limit": limit},
         )
         rows = cur.fetchall()
+    _attach_artists(conn, rows)
     found_tracks[:] = rows
     return f"Found {len(rows)} tracks." if rows else "No tracks matched."
 
 
 def _find_tracks_by_mood(
-    conn, found_tracks, energy=0.5, valence=0.5, danceability=0.5, acousticness=0.5, limit=20
+    conn, found_tracks, energy=0.5, valence=0.5, danceability=0.5, acousticness=0.5, artist="", limit=20
 ):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -204,6 +240,14 @@ def _find_tracks_by_mood(
             LEFT JOIN albums a ON a.id = t.album_id
             WHERE t.energy IS NOT NULL AND t.valence IS NOT NULL
                 AND t.danceability IS NOT NULL AND t.acousticness IS NOT NULL
+                AND (
+                    %(artist)s = ''
+                    OR EXISTS (
+                        SELECT 1 FROM track_artist ta
+                        JOIN artists ar ON ar.id = ta.artist_id
+                        WHERE ta.track_id = t.id AND ar.name ILIKE '%%' || %(artist)s || '%%'
+                    )
+                )
             ORDER BY score
             LIMIT %(limit)s
             """,
@@ -212,10 +256,12 @@ def _find_tracks_by_mood(
                 "valence": valence,
                 "danceability": danceability,
                 "acousticness": acousticness,
+                "artist": artist,
                 "limit": limit,
             },
         )
         rows = cur.fetchall()
+    _attach_artists(conn, rows)
     found_tracks[:] = rows
     return f"Found {len(rows)} tracks." if rows else "No tracks matched."
 
@@ -245,6 +291,40 @@ def _messages_ref(user_id: str):
     return get_firestore_client().collection("chat_history").document(user_id).collection("messages")
 
 
+def _load_recent_history(user_id: str, limit: int = CONTEXT_LIMIT):
+    docs = (
+        _messages_ref(user_id)
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
+    history = [doc.to_dict() for doc in docs]
+    history.reverse()
+    return history
+
+
+def _track_summary(tracks):
+    parts = []
+    for t in tracks[:10]:
+        artists = ", ".join(a["name"] for a in (t.get("artists") or []))
+        parts.append(f"{t.get('name')} — {artists}" if artists else t.get("name", ""))
+    return ", ".join(parts)
+
+
+def _history_to_messages(history):
+    """Firestore에 저장된 과거 대화를 OpenAI 컨텍스트용 메시지로 변환.
+    과거 assistant 턴에 곡 목록이 있었으면, 화면에는 안 보이지만 LLM이
+    후속 질문("그 중 첫 곡 아티스트는?", "더 신나는 걸로")에 답할 수 있게
+    곡 요약을 content에 덧붙인다."""
+    messages = []
+    for h in history:
+        content = h.get("content") or ""
+        if h.get("role") == "assistant" and h.get("tracks"):
+            content = f"{content}\n\n[Shown tracks: {_track_summary(h['tracks'])}]"
+        messages.append({"role": h.get("role"), "content": content})
+    return messages
+
+
 @router.post("")
 def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=Depends(get_db)):
     found_tracks = []
@@ -256,9 +336,20 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
         "show_mood_picker": lambda **kw: _show_mood_picker(show_mood_picker, **kw),
     }
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + [
-        {"role": m.role, "content": m.content} for m in body.messages
-    ]
+    if not body.messages:
+        return {"reply": "", "tracks": [], "show_mood_picker": False}
+    last_user_message = body.messages[-1]
+
+    if user_id:
+        # Firestore에 저장된 실제 히스토리(곡 목록 포함)를 컨텍스트로 사용 —
+        # 프론트가 보낸 role/content만 있는 body.messages보다 신뢰할 수 있음.
+        chat_messages = _history_to_messages(_load_recent_history(user_id)) + [
+            {"role": "user", "content": last_user_message.content}
+        ]
+    else:
+        chat_messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + chat_messages
 
     reply = ""
     for _ in range(5):
@@ -282,11 +373,7 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
                 {"role": "tool", "tool_call_id": tool_call.id, "content": result}
             )
 
-    for t in found_tracks:
-        t["artists"] = []
-
-    if user_id and body.messages:
-        last_user_message = body.messages[-1]
+    if user_id:
         messages_ref = _messages_ref(user_id)
         messages_ref.add(
             {
