@@ -19,13 +19,35 @@ Spotify Web API는 로그인 사용자 확인과 사용자의 플레이리스트
 
 1. `.env.example`을 `.env`로 복사하고 값을 채웁니다. (`firebase-service-account.json`은 git에 포함되지 않으니 별도로 전달받아 프로젝트 루트에 둡니다.)
 2. `frontend/.env.example`을 `frontend/.env`로 복사합니다.
-3. PostgreSQL과 Redis를 실행합니다.
+
+### Docker로 한 번에 실행 (추천)
+
+Python/Node를 따로 설치할 필요 없이, Postgres·Redis·백엔드·프런트엔드 4개가 한 번에 뜹니다.
+
+```powershell
+docker compose up -d --build
+```
+
+카탈로그 데이터를 처음 적재합니다. (이미 채워진 DB를 덤프로 받았다면 생략)
+
+```powershell
+docker compose exec backend python -m ingest.run
+```
+
+- App: http://127.0.0.1:5500
+- API docs: http://127.0.0.1:8010/docs
+
+코드를 수정하면 컨테이너 안에서 바로 반영됩니다 (백엔드는 `--reload`, 프런트엔드는 Vite HMR).
+
+### 직접 실행하고 싶다면
+
+3. PostgreSQL과 Redis만 Docker로 실행합니다.
 
    ```powershell
-   docker compose up -d
+   docker compose up -d postgres redis
    ```
 
-4. 카탈로그 데이터를 처음 적재합니다. (이미 채워진 DB를 덤프로 받았다면 생략)
+4. 카탈로그 데이터를 처음 적재합니다.
 
    ```powershell
    .\S_env\Scripts\python.exe -m ingest.run
@@ -44,9 +66,6 @@ Spotify Web API는 로그인 사용자 확인과 사용자의 플레이리스트
    npm install
    npm run dev -- --host 127.0.0.1 --port 5500
    ```
-
-- App: http://127.0.0.1:5500
-- API docs: http://127.0.0.1:8010/docs
 
 ## 스키마 변경
 
