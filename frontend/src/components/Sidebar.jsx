@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { api } from "../api";
 
@@ -15,6 +15,7 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { sessionId: activeSessionId } = useParams();
   const [sessions, setSessions] = useState([]);
 
   useEffect(() => {
@@ -28,6 +29,15 @@ export default function Sidebar() {
     navigate(`/search/${session.id}`);
   };
 
+  const deleteChat = async (e, session) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete "${session.title}"?`)) return;
+    await api.deleteChatSession(session.id);
+    setSessions((prev) => prev.filter((s) => s.id !== session.id));
+    if (activeSessionId === session.id) navigate("/search");
+  };
+
   return (
     <aside className="fixed left-0 top-0 h-full w-72 bg-surface-container-lowest z-50 flex flex-col pt-md pb-xl overflow-y-auto">
       <div className="px-md mb-lg flex items-center gap-xs">
@@ -36,39 +46,42 @@ export default function Sidebar() {
       </div>
       <nav className="flex-1 px-base space-y-xs">
         {links.map((link) => (
-          <div key={link.to}>
-            <NavLink
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) =>
-                `flex items-center px-md py-sm rounded-lg transition-all group ${
-                  isActive
-                    ? "bg-surface-container-highest text-on-surface font-bold"
-                    : "text-on-surface-variant hover:text-on-surface"
-                }`
-              }
-            >
-              <span className="material-symbols-outlined mr-sm group-hover:text-primary transition-colors">
-                {link.icon}
-              </span>
-              <span className="font-body-lg text-body-lg">{link.label}</span>
-            </NavLink>
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.end}
+            className={({ isActive }) =>
+              `flex items-center px-md py-sm rounded-lg transition-all group ${
+                isActive
+                  ? "bg-surface-container-highest text-on-surface font-bold"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`
+            }
+          >
+            <span className="material-symbols-outlined mr-sm group-hover:text-primary transition-colors">
+              {link.icon}
+            </span>
+            <span className="font-body-lg text-body-lg">{link.label}</span>
+          </NavLink>
+        ))}
 
-            {link.to === "/search" && user && (
-              <div className="mt-xs ml-lg flex flex-col gap-1 border-l border-outline-variant/40 pl-sm">
-                <button
-                  onClick={startNewChat}
-                  className="flex items-center gap-xs px-sm py-xs rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors text-left"
-                >
-                  <span className="material-symbols-outlined text-base">add_comment</span>
-                  <span className="font-body-sm text-body-sm">New chat</span>
-                </button>
-                {sessions.map((s) => (
+        {user && (
+          <>
+            <hr className="border-outline-variant/40 my-sm" />
+            <button
+              onClick={startNewChat}
+              className="w-full flex items-center gap-xs px-md py-sm rounded-lg bg-primary text-on-primary font-label-bold text-label-bold hover:scale-[1.02] transition-transform"
+            >
+              <span className="material-symbols-outlined">add_comment</span>
+              New chat
+            </button>
+            <div className="flex flex-col gap-1 mt-xs">
+              {sessions.map((s) => (
+                <div key={s.id} className="group flex items-center">
                   <NavLink
-                    key={s.id}
                     to={`/search/${s.id}`}
                     className={({ isActive }) =>
-                      `px-sm py-xs rounded-md truncate font-body-sm text-body-sm transition-colors ${
+                      `flex-1 min-w-0 px-md py-xs rounded-md truncate font-body-sm text-body-sm transition-colors ${
                         isActive
                           ? "bg-surface-container-highest text-on-surface"
                           : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
@@ -78,11 +91,18 @@ export default function Sidebar() {
                   >
                     {s.title}
                   </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+                  <button
+                    onClick={(e) => deleteChat(e, s)}
+                    title="Delete chat"
+                    className="p-xs mr-xs rounded-full text-on-surface-variant opacity-0 group-hover:opacity-100 hover:text-error hover:bg-surface-container-highest transition-all shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-base">delete</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </nav>
       <div className="px-md mt-auto pt-lg">
         {user ? (
