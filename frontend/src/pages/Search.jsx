@@ -79,7 +79,7 @@ export default function Search() {
           </button>
         </div>
       )}
-      <div className="flex-1 flex flex-col gap-md pb-24">
+      <div className="flex-1 flex flex-col gap-md pb-64">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
@@ -118,7 +118,7 @@ export default function Search() {
 
       <form
         onSubmit={send}
-        className="fixed bottom-[80px] left-72 right-0 bg-surface px-lg py-md z-30"
+        className="fixed bottom-[80px] left-72 right-0 bg-surface/90 backdrop-blur-md px-lg py-md z-30"
       >
         <div className="max-w-2xl mx-auto flex items-center gap-sm">
           <input
