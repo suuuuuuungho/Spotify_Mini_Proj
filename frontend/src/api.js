@@ -59,9 +59,16 @@ export const api = {
       `/discover/mood?energy=${energy}&valence=${valence}&danceability=${danceability}&acousticness=${acousticness}&liveness=${liveness}&speechiness=${speechiness}&limit=${limit}`
     ),
 
-  chat: (messages) => request("/chat", { method: "POST", body: JSON.stringify({ messages }) }),
-  chatHistory: () => request("/chat/history"),
-  clearChatHistory: () => request("/chat/history", { method: "DELETE" }),
+  chat: (messages, sessionId) =>
+    request("/chat", {
+      method: "POST",
+      body: JSON.stringify({ messages, session_id: sessionId || null }),
+    }),
+  chatSessions: () => request("/chat/sessions"),
+  createChatSession: () => request("/chat/sessions", { method: "POST" }),
+  chatSessionHistory: (sessionId) => request(`/chat/sessions/${sessionId}/history`),
+  deleteChatSession: (sessionId) =>
+    request(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
 
   statsGenres: () => request("/stats/genres"),
   statsTopArtists: (limit = 20) => request(`/stats/top-artists?limit=${limit}`),

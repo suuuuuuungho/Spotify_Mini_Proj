@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useNowPlaying } from "../NowPlayingContext";
 import TrackRow from "../components/TrackRow";
 import AddToPlaylistModal from "../components/AddToPlaylistModal";
 import VibeFinderCard from "../components/VibeFinderCard";
 
 export default function Search() {
   const { user } = useAuth();
+  const { track } = useNowPlaying();
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,19 +20,16 @@ export default function Search() {
   const bottomRef = useRef(null);
 
   useEffect(() => {
-    if (!user) return;
-    api.chatHistory().then(({ messages }) => setMessages(messages));
-  }, [user]);
+    if (!user || !sessionId) {
+      setMessages([]);
+      return;
+    }
+    api.chatSessionHistory(sessionId).then(({ messages }) => setMessages(messages));
+  }, [user, sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-
-  const clearChat = async () => {
-    if (!confirm("Clear this conversation?")) return;
-    if (user) await api.clearChatHistory();
-    setMessages([]);
-  };
 
   const send = async (e) => {
     e.preventDefault();
@@ -39,13 +41,22 @@ export default function Search() {
     setInput("");
     setLoading(true);
     try {
-      const { reply, tracks, show_mood_picker } = await api.chat(
-        nextMessages.map(({ role, content }) => ({ role, content }))
+      const {
+        reply,
+        tracks,
+        show_mood_picker,
+        session_id: newSessionId,
+      } = await api.chat(
+        nextMessages.map(({ role, content }) => ({ role, content })),
+        sessionId
       );
       setMessages([
         ...nextMessages,
         { role: "assistant", content: reply, tracks, show_mood_picker },
       ]);
+      if (newSessionId && newSessionId !== sessionId) {
+        navigate(`/search/${newSessionId}`, { replace: true });
+      }
     } catch (err) {
       setMessages([
         ...nextMessages,
@@ -67,61 +78,51 @@ export default function Search() {
   };
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto">
-      {messages.length > 0 && (
-        <div className="fixed top-16 left-72 right-0 z-30 bg-surface-container-low/90 backdrop-blur-md px-lg py-sm">
-          <div className="max-w-2xl mx-auto flex justify-end">
-            <button
-              onClick={clearChat}
-              className="flex items-center gap-xs text-on-surface-variant hover:text-on-surface font-label-bold text-label-bold px-md py-xs rounded-full hover:bg-surface-container-high transition-colors"
-            >
-              <span className="material-symbols-outlined text-base">add_comment</span>
-              New chat
-            </button>
-          </div>
+    <div
+      className={`fixed top-16 left-72 right-0 flex flex-col ${
+        track ? "bottom-[104px]" : "bottom-0"
+      }`}
+    >
+      <div className="flex-1 overflow-y-auto px-lg">
+        <div className="max-w-2xl mx-auto flex flex-col gap-md py-lg">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] rounded-2xl px-md py-sm ${
+                  m.role === "user"
+                    ? "bg-primary text-on-primary rounded-br-sm"
+                    : "bg-surface-container-high text-on-surface rounded-bl-sm"
+                }`}
+              >
+                <p className="font-body-lg text-body-lg whitespace-pre-wrap">{m.content}</p>
+                {m.show_mood_picker && (
+                  <VibeFinderCard
+                    onSearch={(values) => searchVibe(i, values)}
+                    loading={vibeLoading === i}
+                  />
+                )}
+                {m.tracks?.length > 0 && (
+                  <div className="flex flex-col mt-sm -mx-sm bg-surface/40 rounded-xl overflow-hidden">
+                    {m.tracks.map((track) => (
+                      <TrackRow key={track.id} track={track} onAction={setAddingTrack} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-surface-container-high text-on-surface-variant rounded-2xl rounded-bl-sm px-md py-sm font-body-sm text-body-sm">
+                Thinking...
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
         </div>
-      )}
-      <div className={`flex-1 flex flex-col gap-md pb-64 ${messages.length > 0 ? "pt-14" : ""}`}>
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[85%] rounded-2xl px-md py-sm ${
-                m.role === "user"
-                  ? "bg-primary text-on-primary rounded-br-sm"
-                  : "bg-surface-container-high text-on-surface rounded-bl-sm"
-              }`}
-            >
-              <p className="font-body-lg text-body-lg whitespace-pre-wrap">{m.content}</p>
-              {m.show_mood_picker && (
-                <VibeFinderCard
-                  onSearch={(values) => searchVibe(i, values)}
-                  loading={vibeLoading === i}
-                />
-              )}
-              {m.tracks?.length > 0 && (
-                <div className="flex flex-col mt-sm -mx-sm bg-surface/40 rounded-xl overflow-hidden">
-                  {m.tracks.map((track) => (
-                    <TrackRow key={track.id} track={track} onAction={setAddingTrack} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-surface-container-high text-on-surface-variant rounded-2xl rounded-bl-sm px-md py-sm font-body-sm text-body-sm">
-              Thinking...
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
       </div>
 
-      <form
-        onSubmit={send}
-        className="fixed bottom-[80px] left-72 right-0 bg-surface/90 backdrop-blur-md px-lg py-md z-30"
-      >
+      <form onSubmit={send} className="shrink-0 px-lg py-md">
         <div className="max-w-2xl mx-auto flex items-center gap-sm">
           <input
             value={input}

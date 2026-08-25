@@ -1,11 +1,12 @@
 import json
 import os
 import re
-from typing import List, Literal
+import uuid
+from typing import List, Literal, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from google.cloud import firestore
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel
 
@@ -174,6 +175,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
+    session_id: Optional[str] = None
 
 
 def _attach_artists(conn, rows):
@@ -288,13 +290,46 @@ def _list_genres(conn, found_tracks):
     return ", ".join(r["id"] for r in rows)
 
 
-def _messages_ref(user_id: str):
-    return get_firestore_client().collection("chat_history").document(user_id).collection("messages")
+def _sessions_ref(user_id: str):
+    return get_firestore_client().collection("chat_history").document(user_id).collection("sessions")
 
 
-def _load_recent_history(user_id: str, limit: int = CONTEXT_LIMIT):
+def _messages_ref(user_id: str, session_id: str):
+    return _sessions_ref(user_id).document(session_id).collection("messages")
+
+
+def _ensure_session(user_id: str, session_id: Optional[str], title_hint: str):
+    """session_id가 없으면 새 세션을 만들고, 있으면 그대로 씀. 세션 문서에
+    아직 title이 없으면(첫 메시지) 사용자의 첫 메시지로 제목을 붙인다."""
+    sessions_ref = _sessions_ref(user_id)
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        sessions_ref.document(session_id).set(
+            {
+                "title": title_hint[:60],
+                "created_at": firestore.SERVER_TIMESTAMP,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            }
+        )
+    else:
+        doc_ref = sessions_ref.document(session_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.update({"updated_at": firestore.SERVER_TIMESTAMP})
+        else:
+            doc_ref.set(
+                {
+                    "title": title_hint[:60],
+                    "created_at": firestore.SERVER_TIMESTAMP,
+                    "updated_at": firestore.SERVER_TIMESTAMP,
+                }
+            )
+    return session_id
+
+
+def _load_recent_history(user_id: str, session_id: str, limit: int = CONTEXT_LIMIT):
     docs = (
-        _messages_ref(user_id)
+        _messages_ref(user_id, session_id)
         .order_by("created_at", direction=firestore.Query.DESCENDING)
         .limit(limit)
         .stream()
@@ -345,13 +380,15 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
     }
 
     if not body.messages:
-        return {"reply": "", "tracks": [], "show_mood_picker": False}
+        return {"reply": "", "tracks": [], "show_mood_picker": False, "session_id": body.session_id}
     last_user_message = body.messages[-1]
 
+    session_id = body.session_id
     if user_id:
+        session_id = _ensure_session(user_id, body.session_id, last_user_message.content)
         # Firestore에 저장된 실제 히스토리(곡 목록 포함)를 컨텍스트로 사용 —
         # 프론트가 보낸 role/content만 있는 body.messages보다 신뢰할 수 있음.
-        chat_messages = _history_to_messages(_load_recent_history(user_id)) + [
+        chat_messages = _history_to_messages(_load_recent_history(user_id, session_id)) + [
             {"role": "user", "content": last_user_message.content}
         ]
     else:
@@ -361,12 +398,20 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
 
     reply = ""
     for _ in range(5):
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-        )
+        try:
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+            )
+        except APIStatusError as error:
+            if error.status_code == 429:
+                raise HTTPException(
+                    status_code=503,
+                    detail="OpenAI API 사용 한도에 도달했어요. 잠시 후 다시 시도해주세요.",
+                )
+            raise HTTPException(status_code=502, detail="OpenAI API 요청에 실패했어요.")
         message = response.choices[0].message
         messages.append(message.model_dump(exclude_none=True))
 
@@ -382,7 +427,7 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
             )
 
     if user_id:
-        messages_ref = _messages_ref(user_id)
+        messages_ref = _messages_ref(user_id, session_id)
         messages_ref.add(
             {
                 "role": last_user_message.role,
@@ -402,13 +447,49 @@ def chat(body: ChatRequest, user_id: str = Depends(get_optional_user_id), conn=D
             }
         )
 
-    return {"reply": reply, "tracks": found_tracks, "show_mood_picker": show_mood_picker[0]}
+    return {
+        "reply": reply,
+        "tracks": found_tracks,
+        "show_mood_picker": show_mood_picker[0],
+        "session_id": session_id,
+    }
 
 
-@router.get("/history")
-def get_history(user_id: str = Depends(get_current_user_id)):
+@router.get("/sessions")
+def list_sessions(user_id: str = Depends(get_current_user_id)):
+    docs = _sessions_ref(user_id).order_by(
+        "updated_at", direction=firestore.Query.DESCENDING
+    ).stream()
+    return [
+        {"id": doc.id, "title": (doc.to_dict() or {}).get("title") or "New chat"}
+        for doc in docs
+    ]
+
+
+@router.post("/sessions", status_code=201)
+def create_chat_session(user_id: str = Depends(get_current_user_id)):
+    session_id = str(uuid.uuid4())
+    _sessions_ref(user_id).document(session_id).set(
+        {
+            "title": "New chat",
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        }
+    )
+    return {"id": session_id, "title": "New chat"}
+
+
+@router.delete("/sessions/{chat_session_id}", status_code=204)
+def delete_chat_session(chat_session_id: str, user_id: str = Depends(get_current_user_id)):
+    for doc in _messages_ref(user_id, chat_session_id).stream():
+        doc.reference.delete()
+    _sessions_ref(user_id).document(chat_session_id).delete()
+
+
+@router.get("/sessions/{chat_session_id}/history")
+def get_session_history(chat_session_id: str, user_id: str = Depends(get_current_user_id)):
     docs = (
-        _messages_ref(user_id)
+        _messages_ref(user_id, chat_session_id)
         .order_by("created_at", direction=firestore.Query.DESCENDING)
         .limit(HISTORY_LIMIT)
         .stream()
@@ -424,9 +505,3 @@ def get_history(user_id: str = Depends(get_current_user_id)):
     ]
     messages.reverse()
     return {"messages": messages}
-
-
-@router.delete("/history", status_code=204)
-def clear_history(user_id: str = Depends(get_current_user_id)):
-    for doc in _messages_ref(user_id).stream():
-        doc.reference.delete()

@@ -21,6 +21,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Home />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/search/:sessionId" element={<Search />} />
               <Route path="/tracks/:id" element={<TrackDetail />} />
               <Route path="/albums/:id" element={<AlbumDetail />} />
               <Route path="/artists/:id" element={<ArtistDetail />} />
