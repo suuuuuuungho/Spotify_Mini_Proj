@@ -1,0 +1,8 @@
+requests
+python-dotenv
+psycopg2-binary
+redis
+fastapi
+uvicorn[standard]
+openai
+google-cloud-firestore
