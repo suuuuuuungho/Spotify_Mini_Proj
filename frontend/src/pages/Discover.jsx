@@ -49,19 +49,39 @@ export default function Discover() {
   };
 
   return (
-    <div className="flex flex-col gap-lg">
-      <div>
+    <div className="relative flex flex-col gap-lg">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[110px]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-52 -right-10 w-72 h-72 bg-primary-container/25 rounded-full blur-[110px]"
+      />
+
+      <div className="relative">
         <h1 className="mt-5 font-vibe text-[52px] font-black tracking-[-0.02em] text-on-surface">
           Vibe Finder
         </h1>
+        <p className="font-body-sm text-body-sm text-on-surface-variant mt-xs">
+          Dial in a mood and we'll surface tracks that match.
+        </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-md max-w-2xl">
+      <div className="relative grid sm:grid-cols-3 gap-md max-w-4xl">
         {MOOD_SLIDERS.map(({ key, label, lo, hi }) => (
-          <div key={key} className="flex flex-col gap-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-body-sm text-body-sm text-on-surface">{label}</span>
-              <span className="font-body-sm text-[11px] text-on-surface-variant tabular-nums">
+          <div
+            key={key}
+            className="relative overflow-hidden flex flex-col gap-sm rounded-2xl p-md bg-surface-container-high/0 backdrop-blur-xl border border-t-white/40 border-x-white/10 border-b-black/30 shadow-[0_8px_28px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.3),inset_0_-10px_16px_-12px_rgba(0,0,0,0.5)]"
+          >
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
+            <div className="pointer-events-none absolute -top-10 -right-10 w-28 h-28 rounded-full bg-primary/25 blur-2xl" />
+            <div className="pointer-events-none absolute -top-8 left-4 w-20 h-10 rounded-full bg-white/50 blur-xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-10 w-24 h-24 rounded-full bg-black/30 blur-2xl" />
+            <div className="relative flex items-center justify-between">
+              <span className="font-label-bold text-label-bold text-on-surface">{label}</span>
+              <span className="font-body-sm text-[11px] text-primary tabular-nums bg-primary/10 px-xs py-0.5 rounded-full">
                 {values[key].toFixed(2)}
               </span>
             </div>
@@ -74,9 +94,9 @@ export default function Discover() {
               onChange={(e) =>
                 setValues((v) => ({ ...v, [key]: parseFloat(e.target.value) }))
               }
-              className="w-full accent-primary"
+              className="relative w-full accent-primary outline-none focus:outline-none focus-visible:outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(76,244,121,0.7)] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-[0_0_10px_rgba(76,244,121,0.7)] [&::-moz-range-thumb]:cursor-pointer"
             />
-            <div className="flex items-center justify-between text-[11px] text-on-surface-variant/70">
+            <div className="relative flex items-center justify-between text-[11px] text-on-surface-variant/70">
               <span>{lo}</span>
               <span>{hi}</span>
             </div>
@@ -87,7 +107,7 @@ export default function Discover() {
       <button
         onClick={saveAsPlaylist}
         disabled={!user || saving || tracks.length === 0}
-        className="self-start flex items-center gap-xs bg-primary text-on-primary font-label-bold text-label-bold px-md py-xs rounded-full hover:scale-105 transition-transform uppercase disabled:opacity-40 disabled:hover:scale-100"
+        className="relative self-start flex items-center gap-xs bg-primary/90 backdrop-blur text-on-primary font-label-bold text-label-bold px-md py-xs rounded-full hover:scale-105 transition-transform uppercase disabled:opacity-40 disabled:hover:scale-100 shadow-[0_4px_24px_rgba(76,244,121,0.35)] border border-primary-fixed/40"
       >
         <span className="material-symbols-outlined text-base">playlist_add</span>
         {saving ? "Saving..." : "Save these results as a playlist"}
@@ -101,7 +121,10 @@ export default function Discover() {
       {loading ? (
         <p className="text-on-surface-variant font-body-sm text-body-sm">Searching...</p>
       ) : (
-        <div className="flex flex-col">
+        <div className="relative overflow-hidden rounded-2xl bg-surface-container-high/0 backdrop-blur-xl border border-t-white/40 border-x-white/10 border-b-black/30 shadow-[0_8px_28px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.3),inset_0_-10px_16px_-12px_rgba(0,0,0,0.5)] p-sm flex flex-col">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
+          <div className="pointer-events-none absolute -top-8 left-8 w-24 h-10 rounded-full bg-white/40 blur-xl" />
           {tracks.map((track) => (
             <TrackRow key={track.id} track={track} />
           ))}
