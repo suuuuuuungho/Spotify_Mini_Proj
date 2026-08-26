@@ -69,7 +69,11 @@ docker compose exec backend python -m ingest.run
 
 ## 스키마 변경
 
-`db/schema.sql`은 새 데이터베이스 초기화용입니다. 기존 PostgreSQL 볼륨의 구조를 보강할 때는 `db/add_constraints_and_indexes.sql`을 한 번 적용합니다.
+`db/schema.sql`은 새 데이터베이스 초기화용입니다. `db/add_mood_vector.sql`은 pgvector 확장과 `tracks.mood_vector` 컬럼을 추가하는 마이그레이션으로, 필요할 때 한 번 적용합니다.
+
+```powershell
+docker compose exec -T postgres psql -U spotify -d spotify < db/add_mood_vector.sql
+```
 
 ## 인덱스 손상 증상이 보이면
 

@@ -20,30 +20,6 @@ def upsert_users(conn, users):
     conn.commit()
 
 
-def upsert_user_profile(conn, profiles):
-    rows = [
-        (p["user_id"], p.get("email"), p.get("country"), p.get("product"), p.get("image_url"))
-        for p in profiles
-    ]
-    if not rows:
-        return
-    with conn.cursor() as cur:
-        execute_values(
-            cur,
-            """
-            INSERT INTO user_profile (user_id, email, country, product, image_url)
-            VALUES %s
-            ON CONFLICT (user_id) DO UPDATE SET
-                email = EXCLUDED.email,
-                country = EXCLUDED.country,
-                product = EXCLUDED.product,
-                image_url = EXCLUDED.image_url
-            """,
-            rows,
-        )
-    conn.commit()
-
-
 def upsert_artists(conn, artists):
     rows = [
         (a["id"], a.get("name"), a.get("followers"), a.get("popularity"), a.get("spotify_url"))
@@ -113,8 +89,6 @@ def upsert_tracks(conn, tracks):
             t.get("duration_ms"),
             t.get("explicit"),
             t.get("track_number"),
-            t.get("disc_number"),
-            t.get("isrc"),
             t.get("spotify_url"),
             t.get("popularity"),
             t.get("danceability"),
@@ -126,8 +100,6 @@ def upsert_tracks(conn, tracks):
             t.get("instrumentalness"),
             t.get("liveness"),
             t.get("speechiness"),
-            t.get("key"),
-            t.get("mode"),
         )
         for t in tracks
     ]
@@ -138,9 +110,9 @@ def upsert_tracks(conn, tracks):
             cur,
             """
             INSERT INTO tracks (
-                id, name, album_id, duration_ms, explicit, track_number, disc_number, isrc, spotify_url,
+                id, name, album_id, duration_ms, explicit, track_number, spotify_url,
                 popularity, danceability, energy, loudness, valence, tempo, acousticness,
-                instrumentalness, liveness, speechiness, key, mode
+                instrumentalness, liveness, speechiness
             )
             VALUES %s
             ON CONFLICT (id) DO UPDATE SET
@@ -149,8 +121,6 @@ def upsert_tracks(conn, tracks):
                 duration_ms = EXCLUDED.duration_ms,
                 explicit = EXCLUDED.explicit,
                 track_number = EXCLUDED.track_number,
-                disc_number = EXCLUDED.disc_number,
-                isrc = EXCLUDED.isrc,
                 spotify_url = EXCLUDED.spotify_url,
                 popularity = COALESCE(EXCLUDED.popularity, tracks.popularity),
                 danceability = COALESCE(EXCLUDED.danceability, tracks.danceability),
@@ -161,9 +131,7 @@ def upsert_tracks(conn, tracks):
                 acousticness = COALESCE(EXCLUDED.acousticness, tracks.acousticness),
                 instrumentalness = COALESCE(EXCLUDED.instrumentalness, tracks.instrumentalness),
                 liveness = COALESCE(EXCLUDED.liveness, tracks.liveness),
-                speechiness = COALESCE(EXCLUDED.speechiness, tracks.speechiness),
-                key = COALESCE(EXCLUDED.key, tracks.key),
-                mode = COALESCE(EXCLUDED.mode, tracks.mode)
+                speechiness = COALESCE(EXCLUDED.speechiness, tracks.speechiness)
             """,
             rows,
         )
@@ -233,8 +201,6 @@ def upsert_playlists(conn, playlists):
             p.get("name"),
             p.get("description"),
             p.get("owner_id"),
-            p.get("is_public"),
-            p.get("is_collaborative"),
             p.get("image_url"),
             p.get("followers"),
         )
@@ -246,14 +212,12 @@ def upsert_playlists(conn, playlists):
         execute_values(
             cur,
             """
-            INSERT INTO playlists (id, name, description, owner_id, is_public, is_collaborative, image_url, followers)
+            INSERT INTO playlists (id, name, description, owner_id, image_url, followers)
             VALUES %s
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
                 owner_id = EXCLUDED.owner_id,
-                is_public = EXCLUDED.is_public,
-                is_collaborative = EXCLUDED.is_collaborative,
                 image_url = EXCLUDED.image_url,
                 followers = EXCLUDED.followers
             """,
@@ -270,11 +234,11 @@ def upsert_playlist_track(conn, rows):
         execute_values(
             cur,
             """
-            INSERT INTO playlist_track (playlist_id, track_id, added_at, position)
+            INSERT INTO playlist_track (playlist_id, track_id, added_at, track_order)
             VALUES %s
             ON CONFLICT (playlist_id, track_id) DO UPDATE SET
                 added_at = EXCLUDED.added_at,
-                position = EXCLUDED.position
+                track_order = EXCLUDED.track_order
             """,
             rows,
         )

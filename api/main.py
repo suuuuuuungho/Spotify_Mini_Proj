@@ -7,7 +7,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import auth, catalog, chat, discover, my_library, playlists, stats
+from api import VibeFinder, auth, catalog, chat, my_library, playlists, stats
 
 app = FastAPI(title="Spotify Mini Project API")
 
@@ -22,7 +22,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(catalog.router)
 app.include_router(chat.router)
-app.include_router(discover.router)
+app.include_router(VibeFinder.router)
 app.include_router(my_library.router)
 app.include_router(playlists.router)
 app.include_router(stats.router)
