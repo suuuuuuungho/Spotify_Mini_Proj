@@ -423,6 +423,35 @@ const DB_STORES = [
   },
 ];
 
+const LEARNINGS = [
+  {
+    heading: "배운 점",
+    items: [
+      {
+        title: "초기 ERD 설계의 중요성 체감",
+        body: "테이블을 어떻게 분리하고 연결하느냐에 따라 이후 작성해야 하는 JOIN문의 복잡도와 DB의 데이터 일관성 보장 수준이 결정된다는 점을 배웠다.",
+      },
+      {
+        title: "데이터 라벨링, 메타데이터의 중요성",
+        body: "구체적으로 데이터 라벨링하고 다양한 메타 데이터를 기록해두면 다양한 서비스를 제공할 수 있음을 체감.",
+      },
+    ],
+  },
+  {
+    heading: "아쉬운 점",
+    items: [
+      {
+        title: "AI 대화 기능의 임베딩 활용 부족",
+        body: "자연어 질문을 임베딩으로 변환해 pgvector로 검색하는 흐름을 아직 충분히 이해하지 못해, 실제 대화 기능에 적용하지 못한 점이 아쉬웠다.",
+      },
+      {
+        title: "대화 흐름 제어의 어려움",
+        body: "자연스럽게 대화하고 user가 원하는 답변을 도출하는 것이 상당히 어려운 작업임을 깨달았다. intent 분류, context 관리, 구조화된 답변 등 답변의 품질을 높이는 방법을 자세하게 배우고 싶다는 생각이 들었다.",
+      },
+    ],
+  },
+];
+
 export default function Home() {
   const { track } = useNowPlaying();
   const [hoveredKey, setHoveredKey] = useState(null);
@@ -525,6 +554,34 @@ export default function Home() {
             <p className="pl-xl font-body-lg text-xl leading-snug text-on-surface-variant">
               &gt;&gt; {store.note}
             </p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="mt-xl">
+      <h1 className="mt-5 font-vibe text-[52px] font-black tracking-[-0.02em] text-on-surface">
+        What we learned?
+      </h1>
+      <div className="mt-lg flex flex-col gap-xl pb-xl">
+        {LEARNINGS.map((section) => (
+          <div key={section.heading} className="flex flex-col gap-lg">
+            <h2 className="font-headline-lg text-headline-lg text-primary">{section.heading}</h2>
+            <div className="flex flex-col gap-lg">
+              {section.items.map((item) => (
+                <div key={item.title} className="flex flex-col gap-sm">
+                  <div className="flex items-center gap-md">
+                    <span className="w-3 h-3 rounded-full bg-primary shrink-0" />
+                    <p className="font-body-lg text-[28px] leading-snug font-black text-on-surface">
+                      {item.title}
+                    </p>
+                  </div>
+                  <p className="pl-xl font-body-lg text-xl leading-snug text-on-surface-variant max-w-4xl">
+                    {item.body}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
