@@ -65,7 +65,8 @@ const ENTITIES = [
     y: 60,
     w: 190,
     kind: "entity",
-    highlightColor: COLOR.mint,
+    ringInner: COLOR.lime,
+    ringOuter: COLOR.mint,
     columns: [
       { type: "field", name: "id", tag: "PK" },
       { type: "field", name: "display_name" },
@@ -250,7 +251,7 @@ const HOVER_COLOR = "#fbbf24";
 
 function EntityBox({ e, activeKeys, onEnterKey, onLeaveKey }) {
   return (
-    <g>
+    <g filter="url(#glassShadow)">
       <rect
         x={e.x}
         y={e.y}
@@ -258,8 +259,51 @@ function EntityBox({ e, activeKeys, onEnterKey, onLeaveKey }) {
         height={e.h}
         rx={8}
         fill={COLOR.entityFill}
-        stroke={e.highlightColor || COLOR.border}
-        strokeWidth={e.highlightColor ? 3 : 1}
+        fillOpacity={0}
+      />
+      <rect x={e.x} y={e.y} width={e.w} height={e.h} rx={8} fill="url(#glassSheenWhite)" />
+      <rect
+        x={e.x}
+        y={e.y}
+        width={e.w}
+        height={e.h}
+        rx={8}
+        fill="none"
+        stroke={e.ringInner || e.highlightColor || "#ffffff"}
+        strokeOpacity={e.ringInner || e.highlightColor ? 1 : 0.1}
+        strokeWidth={e.ringInner || e.highlightColor ? 3 : 1}
+      />
+      {e.ringOuter && (
+        <rect
+          x={e.x - 6}
+          y={e.y - 6}
+          width={e.w + 12}
+          height={e.h + 12}
+          rx={12}
+          fill="none"
+          stroke={e.ringOuter}
+          strokeWidth={3}
+        />
+      )}
+      <line
+        x1={e.x + 10}
+        y1={e.y + 1.2}
+        x2={e.x + e.w - 10}
+        y2={e.y + 1.2}
+        stroke="#ffffff"
+        strokeOpacity={0.4}
+        strokeWidth={1.4}
+        strokeLinecap="round"
+      />
+      <line
+        x1={e.x + 10}
+        y1={e.y + e.h - 1.2}
+        x2={e.x + e.w - 10}
+        y2={e.y + e.h - 1.2}
+        stroke="#000000"
+        strokeOpacity={0.3}
+        strokeWidth={1.4}
+        strokeLinecap="round"
       />
       <text x={e.x + 10} y={e.y + 17} fontSize={12.5} fontWeight={700} fill={COLOR.onSurface} fontFamily={FONT}>
         {e.id}
@@ -358,18 +402,40 @@ function RowKey({ entityId, row, x, xEnd, width, activeKeys, onEnterKey, onLeave
 
 function JunctionBox({ e, activeKeys, onEnterKey, onLeaveKey }) {
   return (
-    <g>
+    <g filter="url(#glassShadow)">
+      <rect x={e.x} y={e.y} width={e.w} height={e.h} rx={6} fill={COLOR.junctionFill} fillOpacity={0} />
+      <rect x={e.x} y={e.y} width={e.w} height={e.h} rx={6} fill="url(#glassSheenWhite)" />
       <rect
         x={e.x}
         y={e.y}
         width={e.w}
         height={e.h}
         rx={6}
-        fill={COLOR.junctionFill}
+        fill="none"
         stroke={COLOR.primary}
-        strokeOpacity={0.35}
+        strokeOpacity={0.4}
         strokeDasharray="4 3"
         strokeWidth={1}
+      />
+      <line
+        x1={e.x + 8}
+        y1={e.y + 1}
+        x2={e.x + e.w - 8}
+        y2={e.y + 1}
+        stroke="#ffffff"
+        strokeOpacity={0.4}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+      />
+      <line
+        x1={e.x + 8}
+        y1={e.y + e.h - 1}
+        x2={e.x + e.w - 8}
+        y2={e.y + e.h - 1}
+        stroke="#000000"
+        strokeOpacity={0.3}
+        strokeWidth={1.2}
+        strokeLinecap="round"
       />
       <text x={e.x + 8} y={e.y + 12} fontSize={9.5} fontWeight={700} letterSpacing={0.4} fill={COLOR.primary} fontFamily={FONT}>
         {e.id.toUpperCase()}
@@ -485,6 +551,13 @@ export default function Home() {
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill={COLOR.line} />
             </marker>
+            <linearGradient id="glassSheenWhite" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.10" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+            <filter id="glassShadow" x="-40%" y="-40%" width="180%" height="180%">
+              <feDropShadow dx="0" dy="8" stdDeviation="14" floodColor="#000000" floodOpacity="0.35" />
+            </filter>
           </defs>
 
           {CONNECTIONS.map((c, i) => {
