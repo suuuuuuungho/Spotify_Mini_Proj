@@ -10,3 +10,8 @@ WHERE energy IS NOT NULL
     AND acousticness IS NOT NULL
     AND liveness IS NOT NULL
     AND speechiness IS NOT NULL;
+
+-- Powers /discover/mood's `mood_vector <=> target` nearest-neighbor query.
+CREATE INDEX IF NOT EXISTS idx_tracks_mood_vector
+    ON tracks USING ivfflat (mood_vector vector_cosine_ops)
+    WITH (lists = 100);

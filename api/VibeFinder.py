@@ -17,30 +17,22 @@ def mood(
     limit: int = 30,
     conn=Depends(get_db),
 ):
+    # mood_vector stores [energy, valence, danceability, acousticness, liveness, speechiness];
+    # <=> is pgvector's cosine distance operator, so this rides the ivfflat index below
+    # instead of computing an abs()-sum over every row on every request.
+    target = f"[{energy},{valence},{danceability},{acousticness},{liveness},{speechiness}]"
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
             """
             SELECT t.*, a.name AS album_name, a.image_url AS album_image_url,
-                abs(t.energy - %(energy)s) + abs(t.valence - %(valence)s) +
-                abs(t.danceability - %(danceability)s) + abs(t.acousticness - %(acousticness)s) +
-                abs(t.liveness - %(liveness)s) + abs(t.speechiness - %(speechiness)s) AS score
+                t.mood_vector <=> %(target)s::vector AS score
             FROM tracks t
             LEFT JOIN albums a ON a.id = t.album_id
-            WHERE t.energy IS NOT NULL AND t.valence IS NOT NULL
-                AND t.danceability IS NOT NULL AND t.acousticness IS NOT NULL
-                AND t.liveness IS NOT NULL AND t.speechiness IS NOT NULL
-            ORDER BY score
+            WHERE t.mood_vector IS NOT NULL
+            ORDER BY t.mood_vector <=> %(target)s::vector
             LIMIT %(limit)s
             """,
-            {
-                "energy": energy,
-                "valence": valence,
-                "danceability": danceability,
-                "acousticness": acousticness,
-                "liveness": liveness,
-                "speechiness": speechiness,
-                "limit": limit,
-            },
+            {"target": target, "limit": limit},
         )
         tracks = cur.fetchall()
 

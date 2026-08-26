@@ -80,6 +80,22 @@ def upsert_albums(conn, albums):
     conn.commit()
 
 
+def _mood_vector(t):
+    """[energy, valence, danceability, acousticness, liveness, speechiness], matching
+    the column order used by db/add_mood_vector.sql. None unless all six are present."""
+    features = (
+        t.get("energy"),
+        t.get("valence"),
+        t.get("danceability"),
+        t.get("acousticness"),
+        t.get("liveness"),
+        t.get("speechiness"),
+    )
+    if any(f is None for f in features):
+        return None
+    return "[" + ",".join(str(f) for f in features) + "]"
+
+
 def upsert_tracks(conn, tracks):
     rows = [
         (
@@ -100,6 +116,7 @@ def upsert_tracks(conn, tracks):
             t.get("instrumentalness"),
             t.get("liveness"),
             t.get("speechiness"),
+            _mood_vector(t),
         )
         for t in tracks
     ]
@@ -112,7 +129,7 @@ def upsert_tracks(conn, tracks):
             INSERT INTO tracks (
                 id, name, album_id, duration_ms, explicit, track_number, spotify_url,
                 popularity, danceability, energy, loudness, valence, tempo, acousticness,
-                instrumentalness, liveness, speechiness
+                instrumentalness, liveness, speechiness, mood_vector
             )
             VALUES %s
             ON CONFLICT (id) DO UPDATE SET
@@ -131,9 +148,11 @@ def upsert_tracks(conn, tracks):
                 acousticness = COALESCE(EXCLUDED.acousticness, tracks.acousticness),
                 instrumentalness = COALESCE(EXCLUDED.instrumentalness, tracks.instrumentalness),
                 liveness = COALESCE(EXCLUDED.liveness, tracks.liveness),
-                speechiness = COALESCE(EXCLUDED.speechiness, tracks.speechiness)
+                speechiness = COALESCE(EXCLUDED.speechiness, tracks.speechiness),
+                mood_vector = COALESCE(EXCLUDED.mood_vector, tracks.mood_vector)
             """,
             rows,
+            template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::vector)",
         )
     conn.commit()
 
