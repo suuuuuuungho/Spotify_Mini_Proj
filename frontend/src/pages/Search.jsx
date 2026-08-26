@@ -79,7 +79,7 @@ export default function Search() {
 
   return (
     <div
-      className={`fixed top-16 left-72 right-0 flex flex-col ${
+      className={`fixed top-16 left-72 right-0 flex flex-col bg-gradient-to-b from-primary-container/15 via-surface to-surface ${
         track ? "bottom-[104px]" : "bottom-0"
       }`}
     >
