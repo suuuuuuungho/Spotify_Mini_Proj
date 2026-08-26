@@ -29,28 +29,32 @@ function extractDominantColor(imageUrl) {
           const b = data[i + 2];
           const a = data[i + 3];
           if (a < 200) continue;
-          const lightness = (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const lightness = (max + min) / 2;
           if (lightness < 20 || lightness > 235) continue;
+          const saturation = max === 0 ? 0 : (max - min) / max;
+          const weight = saturation * saturation + 0.02;
           const key = `${r >> 4},${g >> 4},${b >> 4}`;
-          const entry = buckets.get(key) || { r: 0, g: 0, b: 0, count: 0 };
-          entry.r += r;
-          entry.g += g;
-          entry.b += b;
-          entry.count += 1;
+          const entry = buckets.get(key) || { r: 0, g: 0, b: 0, weight: 0 };
+          entry.r += r * weight;
+          entry.g += g * weight;
+          entry.b += b * weight;
+          entry.weight += weight;
           buckets.set(key, entry);
         }
         let best = null;
         for (const entry of buckets.values()) {
-          if (!best || entry.count > best.count) best = entry;
+          if (!best || entry.weight > best.weight) best = entry;
         }
         if (!best) {
           resolve(null);
           return;
         }
         resolve(
-          `${Math.round(best.r / best.count)}, ${Math.round(best.g / best.count)}, ${Math.round(
-            best.b / best.count
-          )}`
+          `${Math.round(best.r / best.weight)}, ${Math.round(
+            best.g / best.weight
+          )}, ${Math.round(best.b / best.weight)}`
         );
       } catch {
         resolve(null);

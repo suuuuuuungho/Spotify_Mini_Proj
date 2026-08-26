@@ -50,15 +50,6 @@ export default function Discover() {
 
   return (
     <div className="relative flex flex-col gap-lg">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[110px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-52 -right-10 w-72 h-72 bg-primary-container/25 rounded-full blur-[110px]"
-      />
-
       <div className="relative">
         <h1 className="mt-5 font-vibe text-[52px] font-black tracking-[-0.02em] text-on-surface">
           Vibe Finder
@@ -76,8 +67,8 @@ export default function Discover() {
           >
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
-            <div className="pointer-events-none absolute -top-10 -right-10 w-28 h-28 rounded-full bg-primary/25 blur-2xl" />
-            <div className="pointer-events-none absolute -top-8 left-4 w-20 h-10 rounded-full bg-white/50 blur-xl" />
+            <div className="pointer-events-none absolute -top-10 -right-10 w-28 h-28 rounded-full bg-primary/10 blur-2xl" />
+            <div className="pointer-events-none absolute -top-8 left-4 w-20 h-10 rounded-full bg-white/20 blur-xl" />
             <div className="pointer-events-none absolute -bottom-10 -left-10 w-24 h-24 rounded-full bg-black/30 blur-2xl" />
             <div className="relative flex items-center justify-between">
               <span className="font-label-bold text-label-bold text-on-surface">{label}</span>
