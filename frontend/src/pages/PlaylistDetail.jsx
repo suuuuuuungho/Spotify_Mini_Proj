@@ -9,6 +9,58 @@ function formatYear(dateStr) {
   return new Date(dateStr).getFullYear();
 }
 
+function extractDominantColor(imageUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const size = 48;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, size, size);
+        const { data } = ctx.getImageData(0, 0, size, size);
+        const buckets = new Map();
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+          if (a < 200) continue;
+          const lightness = (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+          if (lightness < 20 || lightness > 235) continue;
+          const key = `${r >> 4},${g >> 4},${b >> 4}`;
+          const entry = buckets.get(key) || { r: 0, g: 0, b: 0, count: 0 };
+          entry.r += r;
+          entry.g += g;
+          entry.b += b;
+          entry.count += 1;
+          buckets.set(key, entry);
+        }
+        let best = null;
+        for (const entry of buckets.values()) {
+          if (!best || entry.count > best.count) best = entry;
+        }
+        if (!best) {
+          resolve(null);
+          return;
+        }
+        resolve(
+          `${Math.round(best.r / best.count)}, ${Math.round(best.g / best.count)}, ${Math.round(
+            best.b / best.count
+          )}`
+        );
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = imageUrl;
+  });
+}
+
 function formatDuration(ms) {
   if (!ms) return "--:--";
   const totalSeconds = Math.round(ms / 1000);
@@ -77,6 +129,7 @@ export default function PlaylistDetail() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTrack, setSelectedTrack] = useState(null);
+  const [heroColor, setHeroColor] = useState(null);
   const menuRef = useRef(null);
 
   const load = () => api.playlist(id).then(setPlaylist);
@@ -85,6 +138,23 @@ export default function PlaylistDetail() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const coverUrl =
+    selectedTrack?.album_image_url ||
+    playlist?.image_url ||
+    playlist?.tracks.find((t) => t.album_image_url)?.album_image_url;
+
+  useEffect(() => {
+    setHeroColor(null);
+    if (!coverUrl) return;
+    let cancelled = false;
+    extractDominantColor(coverUrl).then((color) => {
+      if (!cancelled) setHeroColor(color);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [coverUrl]);
 
   useEffect(() => {
     const onClickOutside = (e) => {
@@ -138,7 +208,16 @@ export default function PlaylistDetail() {
   return (
     <div className="flex items-start gap-lg -mx-lg -mt-16">
     <div className="flex-1 min-w-0 flex flex-col">
-      <div className="bg-gradient-to-b from-primary-container/70 via-primary-container/15 to-surface px-lg pt-24 pb-lg">
+      <div
+        className="bg-gradient-to-b from-primary-container/70 via-primary-container/15 to-surface px-lg pt-24 pb-lg transition-[background] duration-500"
+        style={
+          heroColor
+            ? {
+                backgroundImage: `linear-gradient(to bottom, rgba(${heroColor}, 0.75), rgba(${heroColor}, 0.2), #131313)`,
+              }
+            : undefined
+        }
+      >
         <div className="flex items-end gap-lg">
           <div className="w-56 h-56 rounded-lg overflow-hidden bg-surface-container-high shrink-0 shadow-2xl">
             <CoverArt playlist={playlist} />
